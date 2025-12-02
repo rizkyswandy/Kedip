@@ -11,13 +11,15 @@ Supports multiple public blink detection datasets:
 - RT-BENE
 """
 
+import csv
 import json
 from pathlib import Path
+from typing import Union
 
 import cv2
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 from .preprocessing import FeatureExtractor
 
@@ -98,7 +100,7 @@ class BlinkDataset(Dataset):
         Returns:
             List of sequence metadata
         """
-        sequences = []
+        sequences: list[dict] = []
 
         videos_dir = self.dataset_root / 'videos'
         annotations_dir = self.dataset_root / 'annotations'
@@ -260,7 +262,7 @@ class BlinkDataset(Dataset):
         cap = cv2.VideoCapture(video_path)
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
-        frames = []
+        frames: list[np.ndarray] = []
         for _ in range(end_frame - start_frame):
             ret, frame = cap.read()
             if not ret:
@@ -274,6 +276,235 @@ class BlinkDataset(Dataset):
             frames.append(frame)
 
         cap.release()
+        return frames
+
+    def _get_dummy_sample(self) -> dict[str, torch.Tensor]:
+        """Create dummy sample when feature extraction fails."""
+        return {
+            'rgb': torch.zeros(self.sequence_length, 3, 64, 64),
+            'landmarks': torch.zeros(self.sequence_length, 146),
+            'pose': torch.zeros(self.sequence_length, 3),
+            'presence': torch.zeros(1),
+            'state': torch.zeros(self.sequence_length)
+        }
+
+    def __del__(self):
+        """Cleanup."""
+        if self.own_extractor:
+            self.feature_extractor.close()
+
+
+class RTBENEDataset(Dataset):
+    """
+    RT-BENE dataset loader for image-based blink detection.
+
+    Expected directory structure:
+        dataset_root/
+            rt_bene_subjects.csv          # Master file
+            s000_blink_labels.csv         # Blink labels per subject
+            s000_noglasses/natural/left/  # Left eye images
+            s000_noglasses/natural/right/ # Right eye images
+            ...
+    """
+
+    def __init__(
+        self,
+        dataset_root: str,
+        sequence_length: int = 16,
+        stride: int = 8,
+        split: str = 'train',
+        transform=None,
+        feature_extractor: FeatureExtractor | None = None
+    ):
+        """
+        Args:
+            dataset_root: Root directory of RT-BENE dataset
+            sequence_length: Number of frames per sequence
+            stride: Stride between sequences
+            split: 'train' or 'val'
+            transform: Optional transforms
+            feature_extractor: Feature extractor instance
+        """
+        self.dataset_root = Path(dataset_root)
+        self.sequence_length = sequence_length
+        self.stride = stride
+        self.split = split
+        self.transform = transform
+
+        # Initialize feature extractor
+        if feature_extractor is None:
+            self.feature_extractor = FeatureExtractor()
+            self.own_extractor = True
+        else:
+            self.feature_extractor = feature_extractor
+            self.own_extractor = False
+
+        # Load dataset
+        self.sequences = self._load_sequences()
+
+        print(f"Loaded {len(self.sequences)} sequences from {dataset_root} ({split})")
+
+    def _load_sequences(self) -> list[dict]:
+        """Load and prepare sequences from RT-BENE dataset."""
+        sequences: list[dict] = []
+
+        # Read master CSV
+        master_csv = self.dataset_root / 'rt_bene_subjects.csv'
+        if not master_csv.exists():
+            print(f"Warning: Master CSV not found: {master_csv}")
+            return sequences
+
+        # Parse master CSV to get subjects
+        with open(master_csv) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                subject_split = row['split']  # 'training' or 'validation'
+
+                # Map split names
+                if self.split == 'train' and subject_split != 'training':
+                    continue
+                if self.split == 'val' and subject_split != 'validation':
+                    continue
+
+                # Load this subject's sequences
+                subject_sequences = self._load_subject(
+                    row['file'],  # e.g., 's000_blink_labels.csv'
+                    row['left'],  # e.g., 's000_noglasses/natural/left/'
+                    row['right']  # e.g., 's000_noglasses/natural/right/'
+                )
+                sequences.extend(subject_sequences)
+
+        return sequences
+
+    def _load_subject(
+        self,
+        labels_file: str,
+        left_dir: str,
+        right_dir: str
+    ) -> list[dict]:
+        """Load sequences from a single subject."""
+        sequences: list[dict] = []
+
+        # Read blink labels CSV
+        labels_path = self.dataset_root / labels_file
+        if not labels_path.exists():
+            return sequences
+
+        # Read labels: filename, label (0.0=open, 1.0=closed, 0.5=uncertain)
+        labels_data = []
+        with open(labels_path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                filename = row['name']
+                label = float(row['label'])
+                labels_data.append({
+                    'filename': filename,
+                    'label': 1 if label >= 0.5 else 0  # Treat uncertain as closed
+                })
+
+        if len(labels_data) < self.sequence_length:
+            return sequences
+
+        # Get image directories
+        left_path = self.dataset_root / left_dir
+        right_path = self.dataset_root / right_dir
+
+        if not left_path.exists() or not right_path.exists():
+            return sequences
+
+        # Create sequences with stride
+        for start_idx in range(0, len(labels_data) - self.sequence_length + 1, self.stride):
+            end_idx = start_idx + self.sequence_length
+
+            # Get labels for this sequence
+            seq_labels = [labels_data[i]['label'] for i in range(start_idx, end_idx)]
+            has_blink = any(label == 1 for label in seq_labels)
+
+            # Store sequence info
+            sequences.append({
+                'left_dir': str(left_path),
+                'right_dir': str(right_path),
+                'filenames': [labels_data[i]['filename'] for i in range(start_idx, end_idx)],
+                'frame_labels': seq_labels,
+                'has_blink': has_blink
+            })
+
+        return sequences
+
+    def __len__(self) -> int:
+        return len(self.sequences)
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        """Get a sequence."""
+        seq_info = self.sequences[idx]
+
+        # Load images
+        frames = self._load_images(
+            seq_info['left_dir'],
+            seq_info['right_dir'],
+            seq_info['filenames']
+        )
+
+        # Extract features
+        features = self.feature_extractor.extract_sequence(frames)
+
+        if features is None:
+            # Return dummy data if extraction fails
+            return self._get_dummy_sample()
+
+        # Apply transforms if any
+        if self.transform:
+            features = self.transform(features)
+
+        # Add labels
+        features['presence'] = torch.tensor(
+            [float(seq_info['has_blink'])],
+            dtype=torch.float32
+        )
+        features['state'] = torch.tensor(
+            seq_info['frame_labels'],
+            dtype=torch.float32
+        )
+
+        return features
+
+    def _load_images(
+        self,
+        left_dir: str,
+        right_dir: str,
+        filenames: list[str]
+    ) -> list[np.ndarray]:
+        """
+        Load eye images and combine them into frames.
+
+        For RT-BENE, we have separate left/right eye images.
+        We'll create a combined image by placing them side-by-side.
+        """
+        frames = []
+        left_path = Path(left_dir)
+        right_path = Path(right_dir)
+
+        for filename in filenames:
+            # Load left and right eye images
+            left_img_path = left_path / filename
+            right_img_path = right_path / filename
+
+            if left_img_path.exists() and right_img_path.exists():
+                left_img = cv2.imread(str(left_img_path))
+                right_img = cv2.imread(str(right_img_path))
+
+                if left_img is not None and right_img is not None:
+                    # Combine side-by-side: [left | right]
+                    combined = np.hstack([left_img, right_img])
+                    frames.append(combined)
+                    continue
+
+            # If loading fails, create black frame
+            if frames:
+                frames.append(frames[-1].copy())
+            else:
+                frames.append(np.zeros((64, 128, 3), dtype=np.uint8))
+
         return frames
 
     def _get_dummy_sample(self) -> dict[str, torch.Tensor]:
@@ -318,8 +549,8 @@ class MultiDatasetLoader:
             num_workers: Number of data loading workers
             shuffle: Shuffle data
         """
-        self.datasets = []
-        self.weights = []
+        self.datasets: list[Union[BlinkDataset, RTBENEDataset]] = []
+        self.weights: list[float] = []
 
         # Create shared feature extractor
         feature_extractor = FeatureExtractor()
@@ -327,25 +558,38 @@ class MultiDatasetLoader:
         # Load all datasets
         for config in datasets_config:
             dataset_path = config['path']
+            dataset_name = config.get('name', '')
 
             if not Path(dataset_path).exists():
                 print(f"Warning: Dataset not found: {dataset_path}")
                 continue
 
-            dataset = BlinkDataset(
-                dataset_root=dataset_path,
-                sequence_length=sequence_length,
-                stride=stride,
-                split=split,
-                feature_extractor=feature_extractor
-            )
+            # Check if this is RT-BENE dataset (has master CSV file)
+            is_rtbene = (Path(dataset_path) / 'rt_bene_subjects.csv').exists()
+
+            dataset: Union[BlinkDataset, RTBENEDataset]
+            if is_rtbene or dataset_name == 'RT-BENE':
+                dataset = RTBENEDataset(
+                    dataset_root=dataset_path,
+                    sequence_length=sequence_length,
+                    stride=stride,
+                    split=split,
+                    feature_extractor=feature_extractor
+                )
+            else:
+                dataset = BlinkDataset(
+                    dataset_root=dataset_path,
+                    sequence_length=sequence_length,
+                    stride=stride,
+                    split=split,
+                    feature_extractor=feature_extractor
+                )
 
             self.datasets.append(dataset)
             self.weights.append(config.get('weight', 1.0))
 
         # Concatenate datasets
-        from torch.utils.data import ConcatDataset
-        self.combined_dataset = ConcatDataset(self.datasets)
+        self.combined_dataset: ConcatDataset = ConcatDataset(self.datasets)
 
         # Create data loader
         self.loader = DataLoader(
@@ -367,7 +611,7 @@ class MultiDatasetLoader:
 def create_dataloaders(
     config: dict,
     splits: list[str] = ['train', 'val']
-) -> dict[str, DataLoader]:
+) -> dict[str, MultiDatasetLoader]:
     """
     Create data loaders from configuration.
 
