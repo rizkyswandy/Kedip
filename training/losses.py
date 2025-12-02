@@ -64,10 +64,11 @@ class BlinkLoss(nn.Module):
             (total_loss, presence_loss, state_loss)
         """
         # Presence loss (sequence-level)
+        # Use binary_cross_entropy_with_logits for AMP safety
         if self.use_focal:
             presence_loss = self.focal_loss(pred_presence, target_presence)
         else:
-            presence_loss = F.binary_cross_entropy(
+            presence_loss = F.binary_cross_entropy_with_logits(
                 pred_presence,
                 target_presence,
                 reduction='mean'
@@ -77,7 +78,7 @@ class BlinkLoss(nn.Module):
         if self.use_focal:
             state_loss = self.focal_loss(pred_state, target_state)
         else:
-            state_loss = F.binary_cross_entropy(
+            state_loss = F.binary_cross_entropy_with_logits(
                 pred_state,
                 target_state,
                 reduction='mean'
@@ -93,7 +94,7 @@ class BlinkLoss(nn.Module):
 
     def focal_loss(
         self,
-        pred: torch.Tensor,
+        pred_logits: torch.Tensor,
         target: torch.Tensor
     ) -> torch.Tensor:
         """
@@ -102,13 +103,17 @@ class BlinkLoss(nn.Module):
         FL(p_t) = -α_t * (1 - p_t)^γ * log(p_t)
 
         Args:
-            pred: Predictions
+            pred_logits: Prediction logits (before sigmoid)
             target: Targets
 
         Returns:
             Focal loss value
         """
-        bce_loss = F.binary_cross_entropy(pred, target, reduction='none')
+        # Apply sigmoid to get probabilities
+        pred = torch.sigmoid(pred_logits)
+
+        # Compute BCE loss from logits (AMP-safe)
+        bce_loss = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
 
         # Compute p_t
         p_t = pred * target + (1 - pred) * (1 - target)

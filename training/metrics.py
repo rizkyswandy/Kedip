@@ -44,14 +44,14 @@ class BlinkMetrics:
         Update metrics with batch predictions.
 
         Args:
-            pred_presence: Predicted presence (B, 1)
-            pred_state: Predicted state (B, T)
+            pred_presence: Predicted presence logits (B, 1)
+            pred_state: Predicted state logits (B, T)
             target_presence: Target presence (B, 1)
             target_state: Target state (B, T)
         """
-        # Convert to numpy
-        pred_presence = pred_presence.detach().cpu().numpy()
-        pred_state = pred_state.detach().cpu().numpy()
+        # Apply sigmoid to convert logits to probabilities
+        pred_presence = torch.sigmoid(pred_presence).detach().cpu().numpy()
+        pred_state = torch.sigmoid(pred_state).detach().cpu().numpy()
         target_presence = target_presence.detach().cpu().numpy()
         target_state = target_state.detach().cpu().numpy()
 

@@ -279,13 +279,14 @@ class BlinkTransformer(nn.Module):
         ])
 
         # 5. Prediction Heads
+        # Note: No sigmoid here - we output logits for better numerical stability
+        # with mixed precision training. Apply sigmoid during inference.
         self.presence_head = nn.Sequential(
             nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim // 2, 1),
-            nn.Sigmoid()
+            nn.Linear(hidden_dim // 2, 1)
         )
 
         self.state_head = nn.Sequential(
@@ -293,8 +294,7 @@ class BlinkTransformer(nn.Module):
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim // 2, 1),
-            nn.Sigmoid()
+            nn.Linear(hidden_dim // 2, 1)
         )
 
     def forward(self, rgb, landmarks, pose):
@@ -305,8 +305,8 @@ class BlinkTransformer(nn.Module):
             pose: (B, T, 3) - head pose angles
 
         Returns:
-            presence: (B, 1) - blink presence in sequence
-            state: (B, T) - eye state per frame (0=open, 1=closed)
+            presence: (B, 1) - blink presence logits (apply sigmoid for probabilities)
+            state: (B, T) - eye state logits per frame (apply sigmoid for probabilities)
         """
         B, T = rgb.shape[:2]
 
