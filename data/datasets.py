@@ -399,16 +399,28 @@ class RTBENEDataset(Dataset):
             return sequences
 
         # Read labels: filename, label (0.0=open, 1.0=closed, 0.5=uncertain)
+        # CSV format: name,label (no header row in some files)
         labels_data = []
         with open(labels_path) as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                filename = row['name']
-                label = float(row['label'])
-                labels_data.append({
-                    'filename': filename,
-                    'label': 1 if label >= 0.5 else 0  # Treat uncertain as closed
-                })
+            reader = csv.reader(f)
+            for row_idx, row in enumerate(reader):
+                if len(row) < 2:
+                    continue
+
+                # Skip header if present (check if first row contains 'name' or 'label')
+                if row_idx == 0 and (row[0].lower() == 'name' or row[1].lower() == 'label'):
+                    continue
+
+                try:
+                    filename = row[0]
+                    label = float(row[1])
+                    labels_data.append({
+                        'filename': filename,
+                        'label': 1 if label >= 0.5 else 0  # Treat uncertain as closed
+                    })
+                except (ValueError, IndexError):
+                    # Skip malformed rows
+                    continue
 
         if len(labels_data) < self.sequence_length:
             return sequences
