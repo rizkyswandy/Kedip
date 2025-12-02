@@ -41,8 +41,9 @@ uv run python train.py --config configs/dev_test.yaml --create-dummy
 - **Cross-Platform**: Mac M2, CUDA, CPU
 
 ### High Accuracy
-- **RT-GENE**: >95% F1-score (target)
 - **RT-BENE**: >85% F1-score (target)
+- Trained on 17 subjects with manual annotations
+- Robust to natural variations and lighting conditions
 
 ---
 
@@ -222,12 +223,14 @@ BlinkDetection/
 
 ## Datasets
 
-The system uses two high-quality datasets from Zenodo with **automated download**:
+The system uses the **RT-BENE dataset** from Zenodo with **automated download**:
 
-- **RT-GENE** - Eye Gaze and Blink Dataset (~5GB) [Auto-download from Zenodo]
-- **RT-BENE** - Blink Estimation Dataset (~10GB) [Auto-download from Zenodo]
+- **RT-BENE** - Blink Estimation Dataset (~937MB) [Auto-download from Zenodo]
+  - 17 subjects with manual blink annotations
+  - Eye image patches extracted from RT-GENE dataset
+  - Perfect for real-time blink detection training
 
-**Zero manual downloads needed!** The datasets are automatically downloaded from [Zenodo](https://zenodo.org/records/3685316) when you run training with the `--download-datasets` flag.
+**Zero manual downloads needed!** The dataset is automatically downloaded from [Zenodo](https://zenodo.org/records/3685316) when you run training with the `--download-datasets` flag.
 
 For quick testing without downloading real data, use `--create-dummy` flag!
 

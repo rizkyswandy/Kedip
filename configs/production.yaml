@@ -16,12 +16,9 @@ model:
 data:
   sequence_length: 16
   datasets:
-    - name: RT-GENE
-      path: data/datasets/RT-GENE
-      weight: 1.0
     - name: RT-BENE
       path: data/datasets/RT-BENE
-      weight: 1.5
+      weight: 1.0
 
   augmentation:
     horizontal_flip: 0.5

@@ -17,6 +17,7 @@ Usage:
 
 import argparse
 import json
+import tarfile
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -28,21 +29,17 @@ from tqdm import tqdm
 
 
 # Dataset URLs and metadata
-# Using Zenodo for automated downloads
+# Using Zenodo API for automated downloads
 DATASETS = {
-    'RT-GENE': {
-        'url': 'https://zenodo.org/records/3685316/files/RT_GENE.zip',
-        'description': 'RT-GENE Dataset (Eye Gaze and Blink)',
-        'size': '~5GB',
-        'extract_subdir': None,  # Will extract to RT-GENE
-        'zenodo_record': 'https://zenodo.org/records/3685316'
-    },
     'RT-BENE': {
-        'url': 'https://zenodo.org/records/3685316/files/RT_BENE.zip',
         'description': 'RT-BENE Dataset (Blink Estimation)',
-        'size': '~10GB',
-        'extract_subdir': None,  # Will extract to RT-BENE
-        'zenodo_record': 'https://zenodo.org/records/3685316'
+        'size': '~937MB',
+        'zenodo_record': '3685316',
+        'type': 'zenodo_multi_file',
+        'files': {
+            'master_csv': 'rt_bene_subjects.csv',
+            'subjects': [f's{i:03d}' for i in range(17)],  # s000 to s016
+        }
     }
 }
 
@@ -111,6 +108,32 @@ def extract_zip(zip_path: Path, extract_to: Path) -> bool:
         return False
 
 
+def extract_tar(tar_path: Path, extract_to: Path) -> bool:
+    """
+    Extract tar file with progress bar.
+
+    Args:
+        tar_path: Path to tar file
+        extract_to: Directory to extract to
+
+    Returns:
+        True if successful
+    """
+    try:
+        extract_to.mkdir(parents=True, exist_ok=True)
+
+        with tarfile.open(tar_path, 'r') as tar_ref:
+            members = tar_ref.getmembers()
+            for member in tqdm(members, desc=f'Extracting {tar_path.name}'):
+                tar_ref.extract(member, extract_to)
+
+        return True
+
+    except Exception as e:
+        print(f"Error extracting {tar_path}: {e}")
+        return False
+
+
 def create_dummy_annotations(dataset_path: Path, num_videos: int = 5):
     """
     Create dummy annotations and videos for testing without real data.
@@ -168,6 +191,64 @@ def create_dummy_annotations(dataset_path: Path, num_videos: int = 5):
     print(f"✓ Created dummy data at {dataset_path}")
 
 
+def download_rt_bene(output_dir: Path, dataset_path: Path) -> bool:
+    """
+    Download RT-BENE dataset from Zenodo using their API.
+
+    Args:
+        output_dir: Temporary download directory
+        dataset_path: Final dataset directory
+
+    Returns:
+        True if successful
+    """
+    zenodo_record = '3685316'
+    base_url = f'https://zenodo.org/api/records/{zenodo_record}/files'
+
+    dataset_path.mkdir(parents=True, exist_ok=True)
+
+    # Download master CSV
+    print("Downloading master CSV file...")
+    master_csv_url = f'{base_url}/rt_bene_subjects.csv/content'
+    if not download_file(master_csv_url, dataset_path / 'rt_bene_subjects.csv', 'rt_bene_subjects.csv'):
+        return False
+
+    # Download all subject files (s000 to s016)
+    print("\nDownloading subject files...")
+    for i in range(17):
+        subject_id = f's{i:03d}'
+        print(f"\nProcessing {subject_id}...")
+
+        # Download blink labels CSV
+        csv_filename = f'{subject_id}_blink_labels.csv'
+        csv_url = f'{base_url}/{csv_filename}/content'
+        if not download_file(csv_url, dataset_path / csv_filename, csv_filename):
+            print(f"Warning: Failed to download {csv_filename}")
+            continue
+
+        # Download eye images TAR
+        tar_filename = f'{subject_id}_noglasses_eyes.tar'
+        tar_url = f'{base_url}/{tar_filename}/content'
+        tar_path = output_dir / tar_filename
+
+        if not download_file(tar_url, tar_path, tar_filename):
+            print(f"Warning: Failed to download {tar_filename}")
+            continue
+
+        # Extract TAR file
+        print(f"Extracting {tar_filename}...")
+        if not extract_tar(tar_path, dataset_path):
+            print(f"Warning: Failed to extract {tar_filename}")
+            tar_path.unlink(missing_ok=True)
+            continue
+
+        # Clean up TAR file
+        tar_path.unlink()
+
+    print(f"\n✓ RT-BENE downloaded and extracted to {dataset_path}")
+    return True
+
+
 def download_dataset(
     dataset_name: str,
     output_dir: Path,
@@ -218,9 +299,19 @@ def download_dataset(
             print("\nTo create dummy data for testing, use: --create-dummy")
             return False
 
-    # Automatic download
+    # Handle Zenodo multi-file datasets
+    dataset_type = dataset_info.get('type', 'single_file')
+
+    if dataset_type == 'zenodo_multi_file':
+        if dataset_name == 'RT-BENE':
+            return download_rt_bene(output_dir, dataset_path)
+        else:
+            print(f"Error: Unknown Zenodo multi-file dataset: {dataset_name}")
+            return False
+
+    # Automatic download for single files
     url = dataset_info.get('url')
-    if not url:
+    if not url or not isinstance(url, str):
         print(f"Error: No download URL specified for {dataset_name}")
         return False
 
@@ -238,8 +329,9 @@ def download_dataset(
         return False
 
     # Move to correct location if needed
-    if 'extract_subdir' in dataset_info and dataset_info['extract_subdir'] is not None:
-        extracted_path = output_dir / dataset_info['extract_subdir']
+    extract_subdir = dataset_info.get('extract_subdir')
+    if extract_subdir is not None and isinstance(extract_subdir, str):
+        extracted_path = output_dir / extract_subdir
         if extracted_path.exists() and extracted_path != dataset_path:
             extracted_path.rename(dataset_path)
 
