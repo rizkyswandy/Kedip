@@ -2,7 +2,7 @@
 
 Production-ready transformer-based eye blink detection system optimized for real-time inference.
 
-## 🚀 Zero-to-Training in 3 Commands
+## Zero-to-Training in 3 Commands
 
 ```bash
 # 1. Clone and setup
@@ -22,28 +22,27 @@ uv run python train.py --config configs/dev_test.yaml --create-dummy
 
 ## Features
 
-### 🎯 Real-Time Performance
+### Real-Time Performance
 - **60+ FPS** on modern GPUs
 - **30+ FPS** on Mac M2 (MPS)
 - **<50ms latency** end-to-end
 - Optimized for live webcam streams
 
-### 🧠 Advanced Architecture
+### Advanced Architecture
 - **Linear Attention**: O(N) complexity for speed
 - **Multi-Modal Fusion**: RGB + Landmarks + Head Pose
 - **Dual Prediction**: Sequence-level + Frame-level
 - **Lightweight**: ~12.7M parameters, <50MB size
 
-### 📦 Production Ready
+### Production Ready
 - **Automated Pipeline**: Auto-download datasets
 - **Docker Support**: Container ready
 - **REST API**: FastAPI with WebSocket
 - **Cross-Platform**: Mac M2, CUDA, CPU
 
-### 📊 High Accuracy
-- **EyeBlink8**: >99% F1-score (target)
-- **RT-BENE**: >80% F1-score (target)
-- **RN**: >94% F1-score (target)
+### High Accuracy
+- **RT-GENE**: >95% F1-score (target)
+- **RT-BENE**: >85% F1-score (target)
 
 ---
 
@@ -223,16 +222,14 @@ BlinkDetection/
 
 ## Datasets
 
-The system supports multiple public blink detection datasets:
+The system uses two high-quality datasets from Zenodo with **automated download**:
 
-- **CEW** - Closed Eyes in the Wild (~2GB)
-- **EyeBlink8** - (~500MB) [Manual download]
-- **ZJU** - (~1GB) [Manual download]
-- **Talkingface** - (~3GB) [Manual download]
-- **RT-GENE** - (~5GB) [Manual download]
-- **RT-BENE** - (~10GB) [Manual download]
+- **RT-GENE** - Eye Gaze and Blink Dataset (~5GB) [Auto-download from Zenodo]
+- **RT-BENE** - Blink Estimation Dataset (~10GB) [Auto-download from Zenodo]
 
-Use `--create-dummy` flag for testing without real datasets!
+**Zero manual downloads needed!** The datasets are automatically downloaded from [Zenodo](https://zenodo.org/records/3685316) when you run training with the `--download-datasets` flag.
+
+For quick testing without downloading real data, use `--create-dummy` flag!
 
 ---
 
@@ -275,13 +272,13 @@ See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for complete instructions.
 
 ## Why BlinkTransformer?
 
-✅ **Production-First**: Built for deployment, not just research
-✅ **Zero Config**: Auto-download datasets, auto-setup
-✅ **Fast Development**: Mac M2 for rapid iteration
-✅ **Scalable**: GPU server for production training
-✅ **Real-Time**: Actually works in production (60+ FPS)
-✅ **Well-Documented**: Complete guides and examples
-✅ **Clean Code**: Passes ruff and mypy checks
+**Production-First**: Built for deployment, not just research
+**Zero Config**: Auto-download datasets, auto-setup
+**Fast Development**: Mac M2 for rapid iteration
+**Scalable**: GPU server for production training
+**Real-Time**: Actually works in production (60+ FPS)
+**Well-Documented**: Complete guides and examples
+**Clean Code**: Passes ruff and mypy checks
 
 ---
 

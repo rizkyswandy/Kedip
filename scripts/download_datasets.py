@@ -28,47 +28,21 @@ from tqdm import tqdm
 
 
 # Dataset URLs and metadata
+# Using Zenodo for automated downloads
 DATASETS = {
-    'CEW': {
-        'url': 'http://parnec.nuaa.edu.cn/xtan/data/ClosedEyeDatabases.zip',
-        'description': 'Closed Eyes in the Wild (CEW)',
-        'size': '~2GB',
-        'extract_subdir': 'CEW'
-    },
-    'EyeBlink8': {
-        'url': 'https://www.blinkingmatters.com/research',
-        'description': 'EyeBlink8 Dataset',
-        'size': '~500MB',
-        'manual': True,  # Requires manual download
-        'instructions': 'Visit the URL and request access, then place in data/datasets/EyeBlink8/'
-    },
-    'ZJU': {
-        'url': 'http://www.cs.zju.edu.cn/research/eyeblink',
-        'description': 'ZJU Eyeblink Database',
-        'size': '~1GB',
-        'manual': True,
-        'instructions': 'Visit the URL and request access, then place in data/datasets/ZJU/'
-    },
-    'Talkingface': {
-        'url': 'https://github.com/mpc001/Visual_Speech_Recognition_for_Multiple_Languages',
-        'description': 'Talkingface Video Dataset',
-        'size': '~3GB',
-        'manual': True,
-        'instructions': 'Clone the repo and follow instructions to download'
-    },
     'RT-GENE': {
-        'url': 'https://github.com/Tobias-Fischer/rt_gene',
-        'description': 'RT-GENE Dataset',
+        'url': 'https://zenodo.org/records/3685316/files/RT_GENE.zip',
+        'description': 'RT-GENE Dataset (Eye Gaze and Blink)',
         'size': '~5GB',
-        'manual': True,
-        'instructions': 'Follow instructions at GitHub repo'
+        'extract_subdir': None,  # Will extract to RT-GENE
+        'zenodo_record': 'https://zenodo.org/records/3685316'
     },
     'RT-BENE': {
-        'url': 'https://www.tobiasfischer.info/rt-bene/',
-        'description': 'RT-BENE Dataset',
+        'url': 'https://zenodo.org/records/3685316/files/RT_BENE.zip',
+        'description': 'RT-BENE Dataset (Blink Estimation)',
         'size': '~10GB',
-        'manual': True,
-        'instructions': 'Visit URL and follow download instructions'
+        'extract_subdir': None,  # Will extract to RT-BENE
+        'zenodo_record': 'https://zenodo.org/records/3685316'
     }
 }
 
@@ -172,7 +146,7 @@ def create_dummy_annotations(dataset_path: Path, num_videos: int = 5):
         # Create dummy video file
         video_path = videos_dir / f'video{i:03d}.mp4'
         if not video_path.exists():
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore[attr-defined]
             out = cv2.VideoWriter(str(video_path), fourcc, 30, (640, 480))
 
             for frame_idx in range(300):
@@ -245,12 +219,17 @@ def download_dataset(
             return False
 
     # Automatic download
-    print(f"Downloading from {dataset_info['url']}...")
+    url = dataset_info.get('url')
+    if not url:
+        print(f"Error: No download URL specified for {dataset_name}")
+        return False
+
+    print(f"Downloading from {url}...")
 
     # Download to temporary location
     temp_file = output_dir / f'{dataset_name}.zip'
 
-    if not download_file(dataset_info['url'], temp_file, f'Downloading {dataset_name}'):
+    if not download_file(url, temp_file, f'Downloading {dataset_name}'):
         return False
 
     # Extract
@@ -259,7 +238,7 @@ def download_dataset(
         return False
 
     # Move to correct location if needed
-    if 'extract_subdir' in dataset_info:
+    if 'extract_subdir' in dataset_info and dataset_info['extract_subdir'] is not None:
         extracted_path = output_dir / dataset_info['extract_subdir']
         if extracted_path.exists() and extracted_path != dataset_path:
             extracted_path.rename(dataset_path)

@@ -16,12 +16,12 @@ model:
 data:
   sequence_length: 16
   datasets:
-    - name: CEW
-      path: data/datasets/CEW
+    - name: RT-GENE
+      path: data/datasets/RT-GENE
       weight: 1.0
-    - name: EyeBlink8
-      path: data/datasets/EyeBlink8
-      weight: 1.0
+    - name: RT-BENE
+      path: data/datasets/RT-BENE
+      weight: 1.5
 
   augmentation:
     horizontal_flip: 0.5

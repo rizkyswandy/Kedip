@@ -16,21 +16,6 @@ model:
 data:
   sequence_length: 16
   datasets:
-    - name: CEW
-      path: data/datasets/CEW
-      weight: 1.0
-    - name: EyeBlink8
-      path: data/datasets/EyeBlink8
-      weight: 1.0
-    - name: ZJU
-      path: data/datasets/ZJU
-      weight: 1.0
-    - name: Talkingface
-      path: data/datasets/Talkingface
-      weight: 1.0
-    - name: RN
-      path: data/datasets/RN
-      weight: 1.0
     - name: RT-GENE
       path: data/datasets/RT-GENE
       weight: 1.0
