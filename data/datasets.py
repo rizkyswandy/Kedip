@@ -459,18 +459,15 @@ class RTBENEDataset(Dataset):
         seq_info = self.sequences[idx]
 
         # Load images
-        frames = self._load_images(
+        eye_images = self._load_images(
             seq_info['left_dir'],
             seq_info['right_dir'],
             seq_info['filenames']
         )
 
-        # Extract features
-        features = self.feature_extractor.extract_sequence(frames)
-
-        if features is None:
-            # Return dummy data if extraction fails
-            return self._get_dummy_sample()
+        # RT-BENE has pre-cropped eye images, so we can't use MediaPipe face detection
+        # Instead, we directly use the eye images as RGB and set landmarks/pose to zeros
+        features = self._extract_features_from_eyes(eye_images)
 
         # Apply transforms if any
         if self.transform:
@@ -488,6 +485,47 @@ class RTBENEDataset(Dataset):
 
         return features
 
+    def _extract_features_from_eyes(
+        self,
+        eye_images: list[np.ndarray]
+    ) -> dict[str, torch.Tensor]:
+        """
+        Extract features from pre-cropped eye images.
+
+        RT-BENE contains only eye patches, not full faces, so we can't use
+        MediaPipe face detection. Instead, we directly process the eye images.
+        """
+        rgb_patches = []
+
+        for eye_img in eye_images:
+            # Resize to 64x64 (our model expects this size)
+            resized = cv2.resize(eye_img, (64, 64))
+
+            # Convert BGR to RGB
+            rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+
+            # Normalize to [0, 1]
+            rgb = rgb.astype(np.float32) / 255.0
+
+            # Convert to tensor and transpose to (C, H, W)
+            rgb_tensor = torch.from_numpy(rgb).permute(2, 0, 1)
+
+            rgb_patches.append(rgb_tensor)
+
+        # Stack into (T, C, H, W)
+        rgb_sequence = torch.stack(rgb_patches)
+
+        # Create dummy landmarks and pose (zeros) since we don't have full faces
+        # The model will learn to rely more on RGB features for RT-BENE
+        landmarks = torch.zeros(len(eye_images), 146)
+        pose = torch.zeros(len(eye_images), 3)
+
+        return {
+            'rgb': rgb_sequence,
+            'landmarks': landmarks,
+            'pose': pose
+        }
+
     def _load_images(
         self,
         left_dir: str,
@@ -495,35 +533,29 @@ class RTBENEDataset(Dataset):
         filenames: list[str]
     ) -> list[np.ndarray]:
         """
-        Load eye images and combine them into frames.
+        Load eye images.
 
-        For RT-BENE, we have separate left/right eye images.
-        We'll create a combined image by placing them side-by-side.
+        For RT-BENE, we only use the left eye images since they're pre-cropped.
         """
         frames = []
         left_path = Path(left_dir)
-        right_path = Path(right_dir)
 
         for filename in filenames:
-            # Load left and right eye images
+            # Load left eye image (use left eye for consistency)
             left_img_path = left_path / filename
-            right_img_path = right_path / filename
 
-            if left_img_path.exists() and right_img_path.exists():
+            if left_img_path.exists():
                 left_img = cv2.imread(str(left_img_path))
-                right_img = cv2.imread(str(right_img_path))
 
-                if left_img is not None and right_img is not None:
-                    # Combine side-by-side: [left | right]
-                    combined = np.hstack([left_img, right_img])
-                    frames.append(combined)
+                if left_img is not None:
+                    frames.append(left_img)
                     continue
 
-            # If loading fails, create black frame
+            # If loading fails, create black frame or repeat last
             if frames:
                 frames.append(frames[-1].copy())
             else:
-                frames.append(np.zeros((64, 128, 3), dtype=np.uint8))
+                frames.append(np.zeros((36, 60, 3), dtype=np.uint8))
 
         return frames
 
