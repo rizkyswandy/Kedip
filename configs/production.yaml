@@ -1,0 +1,74 @@
+experiment:
+  name: blink_transformer_production
+  seed: 42
+  device: cuda
+  num_workers: 8
+
+model:
+  backbone: mobilenetv3_large_100
+  hidden_dim: 256
+  num_heads: 8
+  num_layers: 4
+  dropout: 0.1
+  use_cross_modal: true
+  use_linear_attention: true
+
+data:
+  sequence_length: 16
+  datasets:
+    - name: CEW
+      path: data/datasets/CEW
+      weight: 1.0
+    - name: EyeBlink8
+      path: data/datasets/EyeBlink8
+      weight: 1.0
+    - name: ZJU
+      path: data/datasets/ZJU
+      weight: 1.0
+    - name: Talkingface
+      path: data/datasets/Talkingface
+      weight: 1.0
+    - name: RN
+      path: data/datasets/RN
+      weight: 1.0
+    - name: RT-GENE
+      path: data/datasets/RT-GENE
+      weight: 1.0
+    - name: RT-BENE
+      path: data/datasets/RT-BENE
+      weight: 1.5
+
+  augmentation:
+    horizontal_flip: 0.5
+    rotation: 15
+    brightness: 0.3
+    contrast: 0.3
+    gaussian_blur: 0.1
+
+training:
+  batch_size: 16
+  epochs: 100
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+
+  optimizer: adamw
+  scheduler: cosine
+  warmup_epochs: 5
+
+  use_amp: true
+
+  presence_weight: 1.0
+  state_weight: 1.0
+
+  save_every: 10
+  eval_every: 2
+  keep_last_n: 3
+
+validation:
+  batch_size: 32
+
+logging:
+  tensorboard: true
+  log_every: 20
+  save_images: true

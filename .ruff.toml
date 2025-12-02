@@ -1,0 +1,5 @@
+# Ruff configuration
+[lint]
+# Ignore N812 (non-lowercase imported as non-lowercase) - common for torch.nn.functional as F
+# Ignore N806 (variable in function should be lowercase) - B, T, C, H, W are standard tensor dimensions
+ignore = ["N812", "N806"]

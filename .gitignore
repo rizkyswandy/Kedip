@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+# Experiments and training outputs
+experiments/
+checkpoints/
+logs/
+*.pth
+*.pt
+*.onnx
+
+# Data
+data/datasets/*/
+!data/datasets/.gitkeep
+data/processed/
+
+# TensorBoard
+events.out.tfevents.*
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Model weights
+*.h5
+*.pkl
+*.pickle
+
+# Videos and images (large files)
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+*.cache
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# uv
+uv.lock
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ruff
+.ruff_cache/

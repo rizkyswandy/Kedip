@@ -1,0 +1,55 @@
+experiment:
+  name: blink_transformer_dev
+  seed: 42
+  device: mps
+  num_workers: 0  # Use 0 for Mac M2 to avoid multiprocessing issues
+
+model:
+  backbone: mobilenetv3_small_100
+  hidden_dim: 256
+  num_heads: 8
+  num_layers: 4
+  dropout: 0.1
+  use_cross_modal: true
+  use_linear_attention: true
+
+data:
+  sequence_length: 16
+  datasets:
+    - name: CEW
+      path: data/datasets/CEW
+      weight: 1.0
+    - name: EyeBlink8
+      path: data/datasets/EyeBlink8
+      weight: 1.0
+
+  augmentation:
+    horizontal_flip: 0.5
+    rotation: 10
+    brightness: 0.2
+    contrast: 0.2
+
+training:
+  batch_size: 4 # Small for M2
+  epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+
+  optimizer: adamw
+  scheduler: cosine
+  warmup_epochs: 1
+
+  presence_weight: 1.0
+  state_weight: 1.0
+
+  save_every: 5
+  eval_every: 1
+
+validation:
+  batch_size: 8
+
+logging:
+  tensorboard: true
+  log_every: 10
+  save_images: true
