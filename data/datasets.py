@@ -355,10 +355,18 @@ class RTBENEDataset(Dataset):
             return sequences
 
         # Parse master CSV to get subjects
+        # CSV format: index,file,left,right,split,fold (no header row)
         with open(master_csv) as f:
-            reader = csv.DictReader(f)
+            reader = csv.reader(f)
             for row in reader:
-                subject_split = row['split']  # 'training' or 'validation'
+                if len(row) < 5:
+                    continue
+
+                # Parse columns: index,file,left,right,split,fold
+                labels_file = row[1]  # e.g., 's000_blink_labels.csv'
+                left_dir = row[2]     # e.g., 's000_noglasses/natural/left/'
+                right_dir = row[3]    # e.g., 's000_noglasses/natural/right/'
+                subject_split = row[4]  # 'training' or 'validation'
 
                 # Map split names
                 if self.split == 'train' and subject_split != 'training':
@@ -368,9 +376,9 @@ class RTBENEDataset(Dataset):
 
                 # Load this subject's sequences
                 subject_sequences = self._load_subject(
-                    row['file'],  # e.g., 's000_blink_labels.csv'
-                    row['left'],  # e.g., 's000_noglasses/natural/left/'
-                    row['right']  # e.g., 's000_noglasses/natural/right/'
+                    labels_file,
+                    left_dir,
+                    right_dir
                 )
                 sequences.extend(subject_sequences)
 
