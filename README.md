@@ -123,6 +123,22 @@ uv run python demo/webcam_demo.py \
     --output output.mp4
 ```
 
+### Browser UI (local inference)
+
+```bash
+# 1) Start the FastAPI inference bridge
+uv run uvicorn deployment.api:app --host 0.0.0.0 --port 8000 --reload
+
+# 2) Launch the React web UI (with Tailwind)
+cd web_ui
+npm install
+npm run dev -- --host
+```
+
+- Open the UI at `http://localhost:5173` (or your machine IP on mobile/tablet) and allow camera access.
+- If the API runs on another host/port, set `VITE_API_URL=http://<host>:8000` before `npm run dev`.
+- Metrics (blink count, confidence, FPS, buffer state) render below the live camera feed in the monochrome layout.
+
 ---
 
 ## Documentation
