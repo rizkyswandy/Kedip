@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# System deps for OpenCV/MediaPipe
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy application code
+COPY . /app
+
+# Install runtime deps (mirrors pyproject dependencies)
+RUN python -m pip install --upgrade pip \
+  && python -m pip install --no-cache-dir \
+    torch \
+    torchvision \
+    timm \
+    opencv-python \
+    mediapipe \
+    pillow \
+    numpy \
+    pyyaml \
+    scikit-learn \
+    tensorboard \
+    tqdm \
+    fastapi \
+    uvicorn[standard] \
+    python-multipart \
+    websockets \
+    requests \
+    aiofiles
+
+EXPOSE 8000
+
+ENV MODEL_PATH=/app/checkpoints/best_model.pth \
+    DEVICE=cpu \
+    SEQUENCE_LENGTH=16 \
+    THRESHOLD=0.5
+
+CMD ["uvicorn", "deployment.api:app", "--host", "0.0.0.0", "--port", "8000"]
